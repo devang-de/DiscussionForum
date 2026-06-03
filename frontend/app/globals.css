@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════
+   Classy — White, Gray, Black. Clean & professional.
+   ═══════════════════════════════════════════════════════ */
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #ffffff;
+    color: #1a1a1a;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.12);
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  /* ── Surfaces ──────────────────────────── */
+  .glass {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+
+  .glass-hover:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  /* ── Message bubbles ───────────────────── */
+  .bubble-agent {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px 12px 12px 2px;
+  }
+
+  .bubble-human {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 12px 12px 2px 12px;
+  }
+
+  .bubble-coordinator {
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+  }
+
+  /* ── Buttons ───────────────────────────── */
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid #e5e7eb;
+    color: #4b5563;
+    transition: all 0.2s ease;
+  }
+  .btn-ghost:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+    color: #1f2937;
+  }
+
+  .btn-accent {
+    background: #111827;
+    border: 1px solid #111827;
+    color: #ffffff;
+    transition: all 0.2s ease;
+  }
+  .btn-accent:hover {
+    background: #1f2937;
+    border-color: #1f2937;
+  }
+  .btn-accent:focus-visible {
+    box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.2);
+  }
+  .btn-ghost:focus-visible {
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+  }
+
+  /* ── Inputs ────────────────────────────── */
+  .input-glass {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    color: #1a1a1a;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 12px;
+  }
+  .input-glass:focus {
+    border-color: #9ca3af;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+  }
+  .input-glass::placeholder {
+    color: #a3a3a3;
+  }
+
+  /* ── Animations ────────────────────────── */
+  @keyframes fade-up {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-up {
+    0% { opacity: 0; transform: translateY(16px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.2; }
+    30% { transform: translateY(-4px); opacity: 0.6; }
+  }
+  @keyframes pulse-subtle {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .animate-fade-up { animation: fade-up 0.25s ease-out; }
+  .animate-slide-up { animation: slide-up 0.3s ease-out; }
+  .animate-pulse-subtle { animation: pulse-subtle 2s ease-in-out infinite; }
+
+  .typing-dot {
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: #6b7280;
+    animation: typing-bounce 1.4s infinite ease-in-out;
+  }
+  .typing-dot:nth-child(1) { animation-delay: 0s; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+}
