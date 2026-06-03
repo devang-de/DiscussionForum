@@ -83,6 +83,13 @@ export interface ServerEvent {
   agents?: AgentProfile[];
   reasoning?: string;
   session_id?: string;
+  reaction?: {
+    id: string;
+    message_id: string;
+    sender_id: string;
+    sender_name: string;
+    emoji: string;
+  };
 }
 
 // ─── API calls ────────────────────────────────────────────
@@ -99,19 +106,30 @@ export async function fetchSessions(): Promise<SessionListItem[]> {
   return data.sessions;
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete session");
+}
+
 export async function createSession(
   topic: string,
   expectations?: string,
   maxRounds?: number
 ): Promise<CreateSessionResponse> {
+  const payload: Record<string, unknown> = {
+    topic,
+    expectations: expectations || null,
+  };
+  if (maxRounds !== undefined && maxRounds !== null) {
+    payload.max_rounds = maxRounds;
+  }
+
   const res = await fetch(`${API_URL}/api/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      topic,
-      expectations: expectations || null,
-      max_rounds: maxRounds || 3,
-    }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("Failed to create session");
   return res.json();
@@ -130,11 +148,13 @@ export function streamScoping(
   onError: (err: Error) => void
 ): () => void {
   let cancelled = false;
+  const controller = new AbortController();
 
   (async () => {
     try {
       const res = await fetch(`${API_URL}/api/sessions/${sessionId}/scope`, {
         method: "POST",
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error("Failed to start scoping");
       if (!res.body) throw new Error("No response body");
@@ -161,12 +181,16 @@ export function streamScoping(
         }
       }
     } catch (err) {
-      if (!cancelled) onError(err as Error);
+      const isAbortError = typeof DOMException !== "undefined" && err instanceof DOMException && err.name === "AbortError";
+      if (!cancelled && !isAbortError) {
+        onError(err as Error);
+      }
     }
   })();
 
   return () => {
     cancelled = true;
+    controller.abort();
   };
 }
 
@@ -177,11 +201,13 @@ export function streamDiscussion(
   onError: (err: Error) => void
 ): () => void {
   let cancelled = false;
+  const controller = new AbortController();
 
   (async () => {
     try {
       const res = await fetch(`${API_URL}/api/sessions/${sessionId}/start`, {
         method: "POST",
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error("Failed to start discussion");
       if (!res.body) throw new Error("No response body");
@@ -208,12 +234,16 @@ export function streamDiscussion(
         }
       }
     } catch (err) {
-      if (!cancelled) onError(err as Error);
+      const isAbortError = typeof DOMException !== "undefined" && err instanceof DOMException && err.name === "AbortError";
+      if (!cancelled && !isAbortError) {
+        onError(err as Error);
+      }
     }
   })();
 
   return () => {
     cancelled = true;
+    controller.abort();
   };
 }
 
@@ -225,12 +255,13 @@ export function streamHumanMessage(
   onError: (err: Error) => void
 ): () => void {
   let cancelled = false;
+  const controller = new AbortController();
 
   (async () => {
     try {
       const res = await fetch(
         `${API_URL}/api/sessions/${sessionId}/message?content=${encodeURIComponent(content)}`,
-        { method: "POST" }
+        { method: "POST", signal: controller.signal }
       );
       if (!res.ok) throw new Error("Failed to send message");
       if (!res.body) throw new Error("No response body");
@@ -257,12 +288,16 @@ export function streamHumanMessage(
         }
       }
     } catch (err) {
-      if (!cancelled) onError(err as Error);
+      const isAbortError = typeof DOMException !== "undefined" && err instanceof DOMException && err.name === "AbortError";
+      if (!cancelled && !isAbortError) {
+        onError(err as Error);
+      }
     }
   })();
 
   return () => {
     cancelled = true;
+    controller.abort();
   };
 }
 

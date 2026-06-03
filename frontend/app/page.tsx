@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AgentProfile, createSession, fetchAgents, fetchSessions, SessionListItem } from "@/lib/api";
+import { AgentProfile, createSession, deleteSession, fetchAgents, fetchSessions, SessionListItem } from "@/lib/api";
 
 function timeAgo(dateStr: string): string {
   const now = Date.now();
@@ -41,7 +41,7 @@ export default function HomePage() {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [topic, setTopic] = useState("");
   const [expectations, setExpectations] = useState("");
-  const [maxRounds, setMaxRounds] = useState(3);
+  const [maxRounds, setMaxRounds] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -64,6 +64,16 @@ export default function HomePage() {
     } catch {
       setError("Failed to create discussion. Please ensure the backend is running.");
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (sessionId: string) => {
+    if (!confirm("Delete this discussion? This action cannot be undone.")) return;
+    try {
+      await deleteSession(sessionId);
+      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+    } catch {
+      setError("Failed to delete discussion. Please try again.");
     }
   };
 
@@ -150,6 +160,22 @@ export default function HomePage() {
                   className="w-full input-glass px-4 py-2.5 text-sm resize-none"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">
+                  Max agent chances <span className="normal-case tracking-normal text-gray-300 ml-1 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="number"
+                  value={maxRounds === undefined ? "" : maxRounds}
+                  onChange={(e) => setMaxRounds(e.target.value ? Number(e.target.value) : undefined)}
+                  min={1}
+                  placeholder="e.g. 3"
+                  className="w-full input-glass px-4 py-2.5 text-sm"
+                />
+                <p className="text-[11px] text-gray-400 mt-2">
+                  This is an optional guideline for how many chances each agent may speak, not a strict requirement.
+                </p>
+              </div>
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-600">
                   {error}
@@ -199,12 +225,12 @@ export default function HomePage() {
                     onClick={() => router.push(`/discussion/${s.id}`)}
                     className="bg-white rounded-xl border border-gray-200 px-5 py-4 cursor-pointer hover:border-gray-300 hover:shadow-sm transition-all duration-200 group"
                   >
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium text-gray-900 truncate group-hover:text-gray-600 transition-colors">
                           {s.topic}
                         </div>
-                        <div className="flex items-center gap-3 mt-1.5">
+                        <div className="flex flex-wrap items-center gap-3 mt-1.5">
                           <span className="text-xs text-gray-400">{timeAgo(s.created_at)}</span>
                           <span className="text-gray-200">·</span>
                           <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${st.color} ${st.bg}`}>
@@ -212,10 +238,22 @@ export default function HomePage() {
                           </span>
                         </div>
                       </div>
-                      <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDelete(s.id);
+                          }}
+                          className="text-[11px] font-semibold text-red-600 hover:text-red-800 px-2 py-1 rounded-lg border border-red-100 bg-red-50"
+                        >
+                          Delete
+                        </button>
+                        <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
                   </div>

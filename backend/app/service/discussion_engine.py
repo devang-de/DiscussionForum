@@ -67,7 +67,7 @@ class DiscussionEngine:
     # ------------------------------------------------------------------
 
     def create_session(self, topic: str, expectations: Optional[str] = None,
-                       max_rounds: int = 3, invited_agents: Optional[List[str]] = None) -> Session:
+                       max_rounds: Optional[int] = None, invited_agents: Optional[List[str]] = None) -> Session:
         session = Session(
             id=str(uuid.uuid4()), topic=topic,
             user_expectations=expectations, max_rounds=max_rounds,
@@ -106,8 +106,10 @@ class DiscussionEngine:
             agent = self.agent_pool.get(ad["id"])
             if agent:
                 session.participants.append(Participant(
-                    id=agent.id, name=agent.name, type="agent",
-                    max_turns=999))  # unlimited — coordinator decides when done
+                    id=agent.id,
+                    name=agent.name,
+                    type="agent",
+                    max_turns=session.max_rounds if session.max_rounds is not None else 999))
 
         session.state = SessionState.AWAITING_APPROVAL
         with self._get_db() as db:
@@ -126,7 +128,7 @@ class DiscussionEngine:
             return
 
         session.state = SessionState.IN_PROGRESS
-        agents = [p for p in session.participants if p.type == "agent"]
+        all_agents = [p for p in session.participants if p.type == "agent"]
 
         with self._get_db() as db:
             save_session(db, session)
@@ -140,7 +142,7 @@ class DiscussionEngine:
                 await self._publish_msg(session_id, opening)
 
             # Spontaneous discussion loop
-            MAX_TURNS = 30  # safety cap
+            MAX_TURNS = 60  # safety cap — allow longer, more substantial discussions
             turn_count = 0
 
             while turn_count < MAX_TURNS:
@@ -153,9 +155,20 @@ class DiscussionEngine:
                 # Load current history
                 history = load_messages(db, session_id)
 
+                active_agents = [
+                    p for p in all_agents
+                    if session.max_rounds is None or p.turns_used < session.max_rounds
+                ]
+                if not active_agents:
+                    yield {
+                        "type": "status",
+                        "message": "All agents have used their allotted chances. Wrapping up the discussion...",
+                    }
+                    break
+
                 # Coordinator decides: who speaks next, or are we done?
                 decision = await self.coordinator.decide_next_action(
-                    session, history, agents, turn_count)
+                    session, history, active_agents, turn_count)
 
                 action = decision.get("action", "done")
 
@@ -168,22 +181,41 @@ class DiscussionEngine:
                     target_msg_id = decision.get("target_message_id", "")
                     emoji = decision.get("emoji", "👍")
 
+                    if agent_id:
+                        agent_participant = next(
+                            (p for p in active_agents if p.id == agent_id), None)
+                        if not agent_participant and active_agents:
+                            agent_participant = active_agents[0]
+                            agent_id = agent_participant.id
+
                     await self._handle_agent_reaction(
                         session_id, agent_id, target_msg_id, emoji, session, db)
 
+                    # Yield the reaction event so frontend can display it
+                    agent_profile = self.agent_pool.get(agent_id)
+                    if agent_profile:
+                        yield {"type": "reaction", 
+                               "reaction": {
+                                   "id": str(uuid.uuid4()),
+                                   "message_id": target_msg_id,
+                                   "sender_id": agent_id,
+                                   "sender_name": agent_profile.name,
+                                   "emoji": emoji
+                               }}
+
                     yield {"type": "status",
-                           "message": decision.get("reasoning", f"Agent reacted {emoji}")}
+                           "message": decision.get("reasoning", f"{agent_profile.name if agent_profile else 'An agent'} reacted {emoji}")}
                     continue
 
                 # action == "speak": get the designated speaker
                 agent_id = decision.get("agent_id", "")
                 if not agent_id:
                     # Fallback: pick agent with fewest turns
-                    agent_id = self._pick_least_active(agents)
+                    agent_id = self._pick_least_active(active_agents)
 
                 agent_profile = self.agent_pool.get(agent_id)
                 agent_participant = next(
-                    (p for p in agents if p.id == agent_id), None)
+                    (p for p in active_agents if p.id == agent_id), None)
                 if not agent_profile or not agent_participant:
                     continue
 
@@ -210,7 +242,7 @@ class DiscussionEngine:
                                            agent_id=agent_participant.id)
 
                 prompt = self._build_turn_prompt(
-                    agent_profile, session, history, agents,
+                    agent_profile, session, history, all_agents,
                     decision.get("reasoning", ""))
 
                 try:
@@ -321,6 +353,8 @@ class DiscussionEngine:
 - Disagree constructively — challenge ideas, not people
 - Each message should be 2-4 sentences
 - Use specific evidence or reasoning, not vague statements
+- If a per-agent limit is set, no agent should exceed that number of speaking turns.
+- If no limit is set, do not end the discussion too early; wait until the topic has been explored and the group is ready to conclude.
 - IMPORTANT: If you agree or disagree with someone but have nothing substantially NEW to add, REACT instead of writing a full message. Use [REACT:message_id:👍] to agree or [REACT:message_id:👎] to disagree — where message_id is the short ID in brackets like [a1b2c3d4]. This keeps the conversation lively without redundancy.
 - Example: [REACT:a1b2c3d4:👍] means you agree with that message
 - You can include a reaction AND a short message if needed, but prefer just the reaction when your point has already been made by someone else"""
@@ -345,23 +379,43 @@ class DiscussionEngine:
         if coordinator_reasoning:
             coordinator_hint = f"\n**Why you were chosen to speak now:** {coordinator_reasoning}"
 
+        limit_text = f"{session.max_rounds} turns" if session.max_rounds is not None else "no explicit limit"
         return f"""{group_ctx}
 
 **You are {agent.name}** — {agent.role}. {agent.personality}
+
+**Your speaking budget:** {limit_text}.
+- If a limit is set, this is the maximum number of times you may speak. Prefer reactions instead of repeating another agent's point.
+- If there is no explicit limit, use your judgment to contribute only when it adds value and let the coordinator close the discussion naturally.
 
 **Recent discussion:**
 {history_text}
 {coordinator_hint}
 
-**It's your turn to contribute.** You can:
-- Share a new perspective or insight
-- Respond to a specific person by name (e.g., "@Marcus, I think that overlooks...")
-- Build on or challenge a previous point
-- AGREE or DISAGREE using a reaction: [REACT:<message_id>:👍] or [REACT:<message_id>:👎]
-  where <message_id> is the short ID shown in brackets (e.g., [a1b2c3d4])
-  USE THIS when someone already said what you would say — it shows engagement without repetition
-- Keep to 2-4 sentences. Be substantive. Don't repeat what's already been said.
-- If your entire response would just be 'I agree' or 'I disagree', use a [REACT:...] tag instead."""
+**It's your turn to contribute.** Choose what makes sense:
+
+**Option 1: Speak** (share a new perspective or challenge)
+- Share a substantive new insight, perspective, or evidence
+- Respond directly to someone by name: "@Marcus, I think that overlooks..."
+- Respectfully challenge an assumption or proposal
+- Keep to 2-4 sentences. Don't repeat what's already been said.
+
+**Option 2: React** (when you agree/disagree but have nothing NEW to add)
+- If someone already articulated your point perfectly, REACT instead of repeating them
+- If you want to signal quick agreement or strong disagreement, REACT
+- Format: [REACT:<message_id>:👍] to agree or [REACT:<message_id>:👎] to disagree
+- Replace <message_id> with the short ID shown in brackets (e.g., [a1b2c3d4])
+- You can add a brief note after if needed, but prefer JUST the reaction tag for clarity
+- Examples:
+  - [REACT:a1b2c3d4:👍] — simple agreement
+  - [REACT:f7g8h9i0:👎] Not sure I agree with that framing. — short note + reaction
+
+**REACTIONS ARE NOT WEAK** — they show engagement, build consensus, and keep discussions lively without endless repetition. Use them frequently.
+
+Choose based on what the discussion needs:
+- If you have something NEW to add → Speak
+- If someone said what you'd say, or you want to show quick alignment/disagreement → React
+- If both apply, prefer one strong reaction over a weak message"""
 
     # ------------------------------------------------------------------
     # Reactions

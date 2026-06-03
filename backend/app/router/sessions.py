@@ -82,11 +82,35 @@ async def list_sessions(
                 "id": s.id,
                 "topic": s.topic,
                 "state": s.state,
+                "max_rounds": s.max_rounds,
                 "created_at": s.created_at.isoformat() if s.created_at else "",
             }
             for s in sessions
         ],
     }
+
+
+@router.delete("/{session_id}")
+async def delete_session(
+    session_id: str,
+    engine: DiscussionEngine = Depends(get_engine),
+    db: DBSession = Depends(get_db),
+):
+    """Delete a discussion session and its stored data."""
+    from app.store.database import SessionModel
+
+    session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    engine._cancel_flags[session_id] = True
+    engine._active_sessions.pop(session_id, None)
+    engine._opening_sent.pop(session_id, None)
+    engine._cancel_flags.pop(session_id, None)
+
+    db.delete(session)
+    db.commit()
+    return {"detail": "Session deleted"}
 
 
 @router.get("/{session_id}")
@@ -96,27 +120,56 @@ async def get_session(
     db: DBSession = Depends(get_db),
 ):
     """Get session details with messages."""
-    session = engine._active_sessions.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
     from app.service.coordinator import load_messages
+    from app.store.database import ParticipantModel, SessionModel
+
+    session = engine._active_sessions.get(session_id)
     messages = load_messages(db, session_id)
 
+    if session:
+        return {
+            "id": session.id,
+            "topic": session.topic,
+            "scope": session.scope,
+            "state": session.state.value,
+            "participants": [
+                {"id": p.id, "name": p.name, "type": p.type, "avatar_url": p.avatar_url,
+                 "turns_used": p.turns_used, "max_turns": p.max_turns}
+                for p in session.participants
+            ],
+            "turn_state": session.turn_state.model_dump(),
+            "messages": [m.model_dump(mode="json") for m in messages],
+            "summary": session.summary,
+            "created_at": session.created_at.isoformat(),
+        }
+
+    session_model = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+    if not session_model:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    participants = db.query(ParticipantModel).filter(
+        ParticipantModel.session_id == session_id
+    ).all()
+
     return {
-        "id": session.id,
-        "topic": session.topic,
-        "scope": session.scope,
-        "state": session.state.value,
+        "id": session_model.id,
+        "topic": session_model.topic,
+        "scope": session_model.scope,
+        "state": session_model.state,
         "participants": [
-            {"id": p.id, "name": p.name, "type": p.type, "avatar_url": p.avatar_url,
+            {"id": p.agent_id, "name": p.name, "type": p.type, "avatar_url": p.avatar_url,
              "turns_used": p.turns_used, "max_turns": p.max_turns}
-            for p in session.participants
+            for p in participants
         ],
-        "turn_state": session.turn_state.model_dump(),
+        "turn_state": {
+            "current_speaker_id": session_model.current_speaker_id,
+            "round_number": session_model.current_round,
+            "total_messages": len(messages),
+            "pending_reactions": {},
+        },
         "messages": [m.model_dump(mode="json") for m in messages],
-        "summary": session.summary,
-        "created_at": session.created_at.isoformat(),
+        "summary": session_model.summary,
+        "created_at": session_model.created_at.isoformat(),
     }
 
 

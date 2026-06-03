@@ -100,6 +100,14 @@ export default function DiscussionPage() {
         case "message":
           if (e.message) { const msg = e.message as DiscussionMessage; setMessages((p) => p.find((m) => m.id === msg.id) ? p : [...p, msg]); setThinkingAgent(null); if (msg.sender_type === "agent") setSpeaking(msg.sender_name); }
           break;
+        case "reaction":
+          if (e.reaction) {
+            const reaction = e.reaction;
+            setMessages((p) => p.map((m) => m.id === reaction.message_id 
+              ? { ...m, reactions: [...(m.reactions || []), reaction] } 
+              : m));
+          }
+          break;
         case "summary": if (e.message) setMessages((p) => [...p, e.message as DiscussionMessage]); setPhase("completed"); setShowSummary(true); break;
         case "complete": setPhase("completed"); setShowSummary(true); break;
         case "error": setError(e.message || ""); break;
@@ -115,6 +123,14 @@ export default function DiscussionPage() {
         case "status": setThinkingAgent(e.message?.includes("thinking") ? e.message.split(" is")[0] : null); break;
         case "message":
           if (e.message) { const msg = e.message as DiscussionMessage; setMessages((p) => p.find((m) => m.id === msg.id) ? p : [...p, msg]); setThinkingAgent(null); if (msg.sender_type === "agent") setSpeaking(msg.sender_name); }
+          break;
+        case "reaction":
+          if (e.reaction) {
+            const reaction = e.reaction;
+            setMessages((p) => p.map((m) => m.id === reaction.message_id 
+              ? { ...m, reactions: [...(m.reactions || []), reaction] } 
+              : m));
+          }
           break;
         case "summary": if (e.message) setMessages((p) => [...p, e.message as DiscussionMessage]); setPhase("completed"); setShowSummary(true); break;
         case "complete": setPhase("completed"); setShowSummary(true); break;
@@ -214,8 +230,24 @@ export default function DiscussionPage() {
                             const thumbsUp = msg.reactions.filter((r) => r.emoji === "👍").length;
                             const thumbsDown = msg.reactions.filter((r) => r.emoji === "👎").length;
                             return (<>
-                              {thumbsUp > 0 && <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400"><span>👍</span><span className="tabular-nums">{thumbsUp}</span></span>}
-                              {thumbsDown > 0 && <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400"><span>👎</span><span className="tabular-nums">{thumbsDown}</span></span>}
+                              {thumbsUp > 0 && (
+                                <span
+                                  title={msg.reactions.filter((r) => r.emoji === "👍").map((r) => r.sender_name).join(", ")}
+                                  className="inline-flex items-center gap-0.5 text-[10px] text-gray-400"
+                                >
+                                  <span>👍</span>
+                                  <span className="tabular-nums">{thumbsUp}</span>
+                                </span>
+                              )}
+                              {thumbsDown > 0 && (
+                                <span
+                                  title={msg.reactions.filter((r) => r.emoji === "👎").map((r) => r.sender_name).join(", ")}
+                                  className="inline-flex items-center gap-0.5 text-[10px] text-gray-400"
+                                >
+                                  <span>👎</span>
+                                  <span className="tabular-nums">{thumbsDown}</span>
+                                </span>
+                              )}
                             </>);
                           })()}
                         </div>

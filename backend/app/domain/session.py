@@ -50,7 +50,7 @@ class Session(BaseModel):
     messages: List[Any] = Field(default_factory=list)  # List of DiscussionMessage
     summary: Optional[str] = None
     error: Optional[str] = None
-    max_rounds: int = 3
+    max_rounds: Optional[int] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -59,5 +59,5 @@ class SessionCreate(BaseModel):
     """Payload for creating a new discussion session."""
     topic: str
     expectations: Optional[str] = None  # Optional user-defined expectations
-    max_rounds: int = 3
+    max_rounds: Optional[int] = None
     invited_agents: Optional[List[str]] = None  # User can optionally specify agents

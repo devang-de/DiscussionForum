@@ -137,7 +137,7 @@ Return as JSON:
         """
         # Build context for the coordinator
         agent_summary = "\n".join(
-            f"- {p.name} (id: {p.id}): spoken {p.turns_used} times"
+            f"- {p.name} (id: {p.id}): spoken {p.turns_used} times, max {p.max_turns}"
             for p in agents
         )
 
@@ -147,14 +147,22 @@ Return as JSON:
             role = "Human" if m.sender_id == "human" else m.sender_name
             recent_history += f"[{mid}] [{role}]: {m.content[:200]}\n"
 
+        # Calculate participation balance
+        min_turns = min((p.turns_used for p in agents), default=0)
+        quieter_agents = [p.name for p in agents if p.turns_used <= min_turns + 1]
+        quieter_agents_list = ", ".join(quieter_agents) if quieter_agents else "None"
+
         prompt = f"""You are the moderator of a spontaneous group discussion. Your job is to keep the conversation engaging and productive.
 
 **Topic:** {session.topic}
 **Scope:** {session.scope or 'Comprehensive exploration'}
 **Turn:** {turn_count}
+**Max agent chances:** {session.max_rounds if session.max_rounds is not None else 'none'}
 
-**Participants:**
+**Participants (who has spoken least):**
 {agent_summary}
+
+**Agents who need more air time:** {quieter_agents_list}
 
 **Recent discussion:**
 {recent_history}
@@ -163,16 +171,23 @@ Decide what should happen next. Choose ONE action:
 
 1. **speak** — Pick an agent who should contribute now. They might have a relevant perspective, want to respond to someone, or have been quiet for too long.
 2. **react** — An agent has nothing substantial to add but wants to show agreement or disagreement with a recent message via 👍 or 👎. Pick the agent, target message ID (from brackets), and emoji. Use this frequently — it keeps the discussion alive without redundancy.
-3. **guidance** — The discussion is going off-topic or getting circular. The coordinator should gently redirect. Include guidance text AND pick the next speaker.
-4. **done** — ONLY use this when the discussion has been thoroughly exhausted. ALL participants should have spoken at least 2-3 times, key disagreements explored, and no new perspectives emerging.
+3. **guidance** — ONLY use this when the discussion is truly circular (same points repeated), has drifted significantly off-topic, or is stuck. A gentle nudge to refocus. Do NOT overuse this—good discussions need room to breathe. Include guidance text AND pick the next speaker to continue.
+4. **done** — ONLY use this when the discussion has been THOROUGHLY exhausted. EVERY participant should have spoken at least 3-4 times, key disagreements explored from multiple angles, and truly no new perspectives emerging.
 
-**IMPORTANT guidelines:**
-- Do NOT end the discussion after everyone has spoken just once. Let agents respond to each other, challenge points, and build deeper insights.
-- Prefer "speak" or "react" for at least 12-18 turns before even considering "done".
-- Use "react" liberally — agents can show quick agreement/disagreement with 👍/👎 without a full message. This is great when an agent has already made their point.
-- Don't let the same agent speak twice in a row unless they're directly addressed.
-- Encourage quieter agents to speak up.
-- A lively discussion has back-and-forth, not just one statement per person.
+**CRITICAL guidelines for keeping discussions alive:**
+- **Prefer "speak" and "react"** for at least 20-25 turns minimum before EVER considering "done"
+- **Actively prioritize quieter agents** — if someone has spoken fewer times, pick them to contribute next
+- Do NOT end early just because initial speakers have had their say
+- Ensure EVERY agent gets at least 3-4 opportunities to speak, not just the vocal first 2-3
+- Build disagreement and tension — good discussions have agents challenging each other's points
+- Use reactions heavily (at least 5-8 reactions total per discussion) to build engagement without endless repetition
+- Rotate who speaks to balance participation — favor agents who have spoken fewer times
+- Allow agents to build on each other's points over multiple exchanges before closing
+- The discussion should feel like a real conversation with depth, not a quick round-robin
+- If a per-agent limit is set, do not allow any agent to exceed it. Prioritize reactions and brief contributions once agents approach their limit.
+- If no limit is set, do NOT use artificial limits—keep going until discussion naturally exhausts
+- After a human interjection, allow 2-3 follow-up responses minimum before even considering ending
+- Do NOT end when one agent makes a strong point — let others respond and build counter-arguments
 
 Return JSON:
 {{

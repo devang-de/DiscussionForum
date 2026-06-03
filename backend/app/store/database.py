@@ -47,7 +47,7 @@ class SessionModel(Base):
     state = Column(String, default="created", index=True)
     summary = Column(Text, nullable=True)
     error = Column(Text, nullable=True)
-    max_rounds = Column(Integer, default=3)
+    max_rounds = Column(Integer, nullable=True)
     current_round = Column(Integer, default=0)
     current_speaker_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
