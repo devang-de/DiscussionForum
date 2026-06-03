@@ -67,6 +67,13 @@ export interface CreateSessionResponse {
   participants: SessionParticipant[];
 }
 
+export interface SessionListItem {
+  id: string;
+  topic: string;
+  state: string;
+  created_at: string;
+}
+
 export interface ServerEvent {
   type: string;
   message?: any;
@@ -84,6 +91,12 @@ export async function fetchAgents(): Promise<AgentProfile[]> {
   const res = await fetch(`${API_URL}/api/agents`);
   const data = await res.json();
   return data.agents;
+}
+
+export async function fetchSessions(): Promise<SessionListItem[]> {
+  const res = await fetch(`${API_URL}/api/sessions`);
+  const data = await res.json();
+  return data.sessions;
 }
 
 export async function createSession(
