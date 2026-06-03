@@ -1,4 +1,4 @@
-"""Agent profile domain model for discussion participants."""
+﻿"""Agent profile domain model for discussion participants."""
 
 from __future__ import annotations
 
