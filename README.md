@@ -86,12 +86,8 @@ DiscussionForum/
 │   │   ├── store/           # SQLite database
 │   │   └── data/agents.json # Agent profiles
 │   └── tests/
-└── docs/                    # Documentation
 ```
 
 ## Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — System design and data flow
-- [API.md](API.md) — REST + SSE API reference
-- [AGENTS.md](AGENTS.md) — Agent profiles and discussion behavior
-- [DEVELOPMENT.md](DEVELOPMENT.md) — Setup, code standards, testing
+- [ARCHITECTURE.md](ARCHITECTURE.md) — System design, data flow, API reference
