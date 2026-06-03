@@ -23,4 +23,4 @@ EXPOSE 8000
 # Ensure data directory exists for SQLite volume mount
 RUN mkdir -p /app/data
 
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
